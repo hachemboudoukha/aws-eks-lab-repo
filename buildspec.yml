@@ -1,0 +1,102 @@
+version: 0.2
+env:
+  variables:
+    REPOSITORY_URI: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+phases:
+  install:
+    runtime-versions: 
+      docker: 20
+    commands:
+      - echo Installing kubectl...
+      - curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - echo installation successful
+      - sudo chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - whereis kubectl
+      - which kubectl
+      - echo Successfully installed kubectl
+      - kubectl version --client
+      - echo Installing authenticator...
+      - curl -o aws-iam-authenticator https://amazon-eks.s3.us-east-1.amazonaws.com/1.15.10/2020-02-22/bin/linux/amd64/aws-iam-authenticator
+      - chmod +x ./aws-iam-authenticator
+      - sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - export REPOSITORY_URI=$(aws ecr describe-repositories --repository-names ecr_repo --query 'repositories[0].repositoryUri' --output text)
+      - echo Setting up Kubernetes context...
+      - aws eks update-kubeconfig --name my-eks-cluster --region $AWS_DEFAULT_REGION
+      - CALLER_ARN=$(aws sts get-caller-identity --query 'Arn' --output text)
+      - echo "Checking if EKS access entry exists for $CALLER_ARN..."
+      - if ! aws eks describe-access-entry --cluster-name my-eks-cluster --principal-arn arn:aws:iam::$AWS_ACCOUNT_ID:role/eks-codebuild-role --output text | grep -q arn:aws:iam::$AWS_ACCOUNT_ID:role/eks-codebuild-role; then
+          echo "Creating EKS access entry...";
+          aws eks create-access-entry --cluster-name my-eks-cluster --principal-arn arn:aws:iam::$AWS_ACCOUNT_ID:role/eks-codebuild-role --type STANDARD --username arn:aws:sts::$AWS_ACCOUNT_ID:assumed-role/eks-codebuild-role/{{SessionName}};
+          aws eks associate-access-policy --cluster-name my-eks-cluster --principal-arn arn:aws:iam::$AWS_ACCOUNT_ID:role/eks-codebuild-role --access-scope type=cluster --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy;
+        else
+          echo "EKS access entry for $CALLER_ARN already exists.";
+        fi
+      - |
+        export SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=my-eks-cluster-node*" --query "SecurityGroups[*].GroupId" --output text)
+            if [ -n "$SECURITY_GROUP_ID" ]; then
+                TAG_EXISTS=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$SECURITY_GROUP_ID" "Name=key,Values=kubernetes.io/cluster/my-eks-cluster" "Name=value,Values=owned" --query "Tags[*].Key" --output text)
+                  if [ -n "$TAG_EXISTS" ]; then
+                      aws ec2 delete-tags --resources "$SECURITY_GROUP_ID" --tags Key=kubernetes.io/cluster/my-eks-cluster,Value=owned
+                      echo "Tag kubernetes.io/cluster/my-eks-cluster=owned deleted from security group $SECURITY_GROUP_ID"
+                  else
+                    echo "Tag kubernetes.io/cluster/my-eks-cluster=owned not found on security group $SECURITY_GROUP_ID"
+                  fi
+                
+            else
+                echo "No security group found with the name 'my-eks-cluster-node-*'"
+            fi
+
+  build:
+    commands:
+      - echo Building the Docker image...
+      - pwd 
+      - docker build -t $IMAGE_REPO_NAME .
+      - docker tag $IMAGE_REPO_NAME $REPOSITORY_URI
+  post_build:
+    commands:
+      - echo Pushing the Docker image...
+      - docker push $REPOSITORY_URI
+      - sed -i "s|123456789.dkr.ecr.eu-west-1.amazonaws.com/aritra-eks-demo:[^ ]*|$REPOSITORY_URI:latest|" deployment.yaml
+      - cat deployment.yaml
+      - kubectl config view 
+      - echo Applying deployment...
+      - cat /root/.kube/config
+      - aws sts get-caller-identity
+      - kubectl apply -f replicaset.yaml
+      - kubectl apply -f service.yaml
+      - kubectl apply -f deployment.yaml --validate=false
+      - kubectl apply -f ingress.yaml
+      - kubectl get ingress/my-app-ingress -n default
+      - kubectl get svc
+      - kubectl describe deployment my-app
+      - kubectl get pods
+      - kubectl describe nodes
+      - kubectl get ingress
+      - kubectl describe deployment my-app
+      - echo "scaling the deployment"
+      - kubectl scale deployment my-app --replicas=5
+      - echo "Waiting for External IP..."
+      - export EXTERNAL_IP=$(kubectl get svc my-app-service -o=jsonpath='{.status.loadBalancer.ingress[0].ip}');
+      - |
+        for i in {1..30}; do
+          EXTERNAL_IP=$(kubectl get svc my-app-service -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}');
+          if [[ "$EXTERNAL_IP" != "<pending>" && -n "$EXTERNAL_IP" ]]; then
+            echo "External IP/Hostname found: $EXTERNAL_IP";
+            break;
+          else
+            echo "External IP/Hostname not found yet, waiting...";
+            sleep 10;
+          fi
+        done
+      - kubectl describe svc my-app-service
+      - kubectl get svc my-app-service
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: yes

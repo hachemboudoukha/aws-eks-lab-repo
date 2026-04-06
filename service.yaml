@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-service
+spec:
+  selector:
+    app: my-app  # Match the app label in your deployment
+  ports:
+    - protocol: TCP
+      port: 80  # The port you want to expose the service on
+      targetPort: 8000  # The port the container is listening on, defined in your deployment.yaml
+  type: LoadBalancer  # Creates an AWS ELB to expose the service externally
