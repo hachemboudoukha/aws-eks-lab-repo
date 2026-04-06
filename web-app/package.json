@@ -1,13 +1,24 @@
 {
-  "name": "web-app",
+  "name": "aws-eks-sample-app",
   "version": "1.0.0",
-  "description": "",
+  "description": "Sample Node.js web application for AWS EKS CI/CD pipeline demonstration",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Add tests here\" && exit 0"
   },
-  "author": "",
-  "license": "ISC"
+  "keywords": [
+    "aws",
+    "eks",
+    "kubernetes",
+    "cicd",
+    "codepipeline",
+    "nodejs"
+  ],
+  "author": "Hachem Boudoukha",
+  "license": "MIT"
 }

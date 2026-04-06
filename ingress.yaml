@@ -4,12 +4,14 @@ metadata:
   name: my-app-ingress
   namespace: default
   annotations:
-     alb.ingress.kubernetes.io/scheme: internet-facing
-     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/subnets: "{{ PUBLIC_SUBNET_IDS }}"
+    alb.ingress.kubernetes.io/security-groups: "{{ ALB_SECURITY_GROUP_ID }}"
 spec:
   ingressClassName: alb
   rules:
-  - host: example.com
+  - host: "{{ APP_DOMAIN }}"
     http:
       paths:
       - path: /

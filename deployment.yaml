@@ -1,13 +1,10 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: default
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: default
   name: my-app
+  labels:
+    app: my-app
 spec:
   replicas: 3
   selector:
@@ -18,12 +15,21 @@ spec:
       labels:
         app: my-app
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
       - name: my-app-container
-        image: 123456789.dkr.ecr.eu-west-1.amazonaws.com/aritra-eks-demo:v1
+        image: "{{ DOCKER_REGISTRY_URI }}/{{ IMAGE_REPO_NAME }}:latest"
         imagePullPolicy: Always
         ports:
-        - containerPort: 8000
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8000"
         resources:
           limits:
             cpu: "0.5"
@@ -34,12 +40,16 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 8000
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /
-            port: 8000
+            port: http
           initialDelaySeconds: 5
           periodSeconds: 15
+          timeoutSeconds: 3
+          failureThreshold: 2
