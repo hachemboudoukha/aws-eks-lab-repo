@@ -22,7 +22,7 @@ spec:
       containers:
       - name: my-app-container
         image: "{{ DOCKER_REGISTRY_URI }}/{{ IMAGE_REPO_NAME }}:latest"
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - name: http
           containerPort: 8000
@@ -42,14 +42,14 @@ spec:
             path: /
             port: http
           initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 5
+          periodSeconds: 60
+          timeoutSeconds: 3
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /
             port: http
           initialDelaySeconds: 5
-          periodSeconds: 15
+          periodSeconds: 30
           timeoutSeconds: 3
           failureThreshold: 2
