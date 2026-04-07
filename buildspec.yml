@@ -42,9 +42,7 @@ phases:
     commands:
       - echo "=== Build Phase ==="
       - echo "Building Docker image on $(date)"
-      - docker build -t $IMAGE_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION .
-      - docker tag $IMAGE_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $REPOSITORY_URI:latest
-      - docker tag $IMAGE_REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - docker build -t $REPOSITORY_URI:latest -t $REPOSITORY_URI:$CODEBUILD_RESOLVED_SOURCE_VERSION .
 
   post_build:
     commands:
@@ -59,18 +57,10 @@ phases:
         sed -i "s|{{ APP_DOMAIN }}|${APP_DOMAIN:-example.com}|g" ingress.yaml
 
       - echo "Applying Kubernetes manifests..."
-      - kubectl apply -f deployment.yaml
-      - kubectl apply -f service.yaml
-      - kubectl apply -f ingress.yaml
+      - kubectl apply -f deployment.yaml -f service.yaml -f ingress.yaml
 
       - echo "Waiting for deployment to be ready..."
       - kubectl rollout status deployment/my-app -n default --timeout=5m
-
-      - echo "=== Deployment Status ==="
-      - kubectl get deployment my-app -n default
-      - kubectl get pods -l app=my-app -n default
-      - kubectl get svc my-app-service -n default
-      - kubectl get ingress my-app-ingress -n default
 
       - echo "Build and deployment completed successfully!"
 
