@@ -55,8 +55,5 @@ Update in manifest files:
 - `ingress.yaml`: Domain name
 - `buildspec.yml`: AWS region and cluster name
 
-## License
-MIT - See [LICENSE](LICENSE) for details
-
 ## Author
 **Hachem Boudoukha** | [LinkedIn](https://www.linkedin.com/in/hachemboudoukha/) | [GitHub](https://github.com/hachemboudoukha)
